@@ -1,9 +1,10 @@
 import {curtain} from './curtain.js';
+import {revisionView} from './revision.js';
 import {describe, escape, heading, interval, table} from './tickets.js';
 
 const $ = selector => document.querySelector(selector);
 const links = [...document.querySelectorAll('nav a')];
-const state = {data:null, archive:null, sample:'dirty', job:'', stage:'', request:0};
+const state = {data:null, archive:null, sample:'dirty', job:'', stage:'', request:0, rev:null};
 const show = text => { $('#status').textContent = text; };
 
 async function request(path, body) {
@@ -27,6 +28,7 @@ function sections(view, data) {
     case 'conflicts': return [heading('预约冲突')+table(['资源','冲突预约','重叠段'],d.overlaps.map(h=>[h.resource,`${h.left} / ${h.right}`,interval([h.start,h.end])] )),heading('无效预约')+table(['源序号','预约','原因'],d.issues.map(h=>[h.source_index,h.id,describe(h.code)]))];
     case 'reconcile': return [heading('截止偏差')+table(['工单','源行','超时分钟'],d.late.map(r=>[r.id,r.line,r.minutes])),heading('守恒核验')+table(['核验项','差异'],[['输入行数差',d.row_gap],['排程碰撞',d.collisions.length],['前置违序',d.premature.length],['预约重叠',d.hold_clashes]])];
     case 'dispatch': return [heading('执行顺序')+table(['工位','工单','技师','开工时段'],d.stages.flatMap(s=>s.steps.map(j=>[s.stage,`${j.id} · ${j.title}`,j.technician,interval([j.start,j.end])]))),heading('归档凭证')+archivePanel()];
+    case 'revision': return revisionView(data, state);
     default: return curtain(data,state);
   }
 }
@@ -51,7 +53,7 @@ async function load() {
     const sample = $('#sample').value;
     const data = await request(`/api/samples/${sample}`);
     if (token !== state.request) return;
-    Object.assign(state,{data,archive:null,sample,job:'',stage:''});
+    Object.assign(state,{data,archive:null,sample,job:'',stage:'',rev:null});
     render(); show(data.reconcile.status==='MATCHED' ? '工单与资源已对平' : '有待复核的勾稽差异');
   } catch (error) { if (token===state.request) show(error.message); }
 }
@@ -63,10 +65,48 @@ async function archive(body) {
   try {
     const record=await request('/api/runs',body);
     if (token!==state.request) return;
-    Object.assign(state,{archive:record,data:record.result,sample:body.sample || '',job:'',stage:''});
+    Object.assign(state,{archive:record,data:record.result,sample:body.sample || '',job:'',stage:'',rev:null});
     render(); show(record.reused?'已打开同一批次':'已保存执行清单');
   } catch (error) { if (token===state.request) show(error.message); }
   finally { button.disabled=!state.sample; }
+}
+
+function revisionPayload() {
+  if ($('#rev-source').value === 'custom') {
+    return {orders: $('#rev-orders').value, calendar: JSON.parse($('#rev-calendar').value)};
+  }
+  return {sample: $('#rev-source').value};
+}
+
+async function revisionAction(kind, button) {
+  if (!state.archive) { show('请先归档基线联单'); return; }
+  button.disabled = true;
+  const baseline = state.archive.id;
+  try {
+    const payload = revisionPayload();
+    if (kind === 'preview') {
+      state.rev = await request(`/api/runs/${baseline}/revisions/preview`, payload);
+      show('修订试排完成，核对结论见修订联单');
+    } else if (kind === 'draft') {
+      const record = await request(`/api/runs/${baseline}/revisions`, payload);
+      state.rev = record;
+      show(record.reused ? '同一修订已存在，沿用原联单编号' : '修订草稿已生成，旧版联单保留');
+    } else if (kind === 'verify') {
+      state.rev = await request(`/api/revisions/${state.rev.id}/verify`, {});
+      show(state.rev.status === 'PASSED' ? '修订核对通过，可以发布切换' : '修订核对未通过，旧版联单继续生效');
+    } else if (kind === 'publish') {
+      state.rev = await request(`/api/revisions/${state.rev.id}/publish`, {});
+      show('修订联单已发布，排程、勾稽与执行清单同为该版本');
+    }
+    render();
+  } catch (error) {
+    show(error.message);
+    if (kind === 'verify') {
+      try { state.rev = await (await fetch(`/api/revisions/${state.rev.id}`)).json(); render(); } catch { /* 保留当前视图 */ }
+    }
+  } finally {
+    button.disabled = false;
+  }
 }
 
 $('#sample').addEventListener('change',()=>{ $('#run').disabled=false; load(); });
@@ -76,13 +116,33 @@ $('#custom-form').addEventListener('submit',event=>{
   try { archive({orders:$('#orders').value,calendar:JSON.parse($('#calendar').value)}); }
   catch { show('剧场日历需为有效 JSON'); }
 });
+$('#rev-source').addEventListener('change',event=>{
+  $('#rev-custom').hidden = event.target.value !== 'custom';
+});
+$('#rev-load-baseline').addEventListener('click',()=>{
+  if (!state.archive) { show('请先归档基线联单'); return; }
+  // 采信与隔离行都保留了物理原文，重建完整基线流水，值班员只改需要修订的行
+  $('#rev-orders').value = state.data.orders.rows.map(row=>row.raw).join('\n');
+  $('#rev-calendar').value = JSON.stringify(state.data.calendars, null, 2);
+  show('已载入基线工单与日历，修改后选择自备修订提交');
+});
 document.addEventListener('change',event=>{ if(event.target.id==='stage') { state.stage=event.target.value; render(); $('#stage').focus(); } });
 document.addEventListener('click',async event=>{
   const btn=event.target.closest('button');
+  if (btn?.classList.contains('link-job')) {
+    state.job = btn.dataset.job;
+    render();
+    document.querySelector(`.link-job[data-job="${state.job}"]`)?.focus();
+    return;
+  }
   if (btn?.dataset.job) { state.job=btn.dataset.job; render(); [...document.querySelectorAll('[data-job]')].find(node=>node.dataset.job===state.job)?.focus(); }
   if (btn?.id==='rerun' && state.archive) {
     try { await request(`/api/runs/${state.archive.id}/rerun`,{}); show('复跑一致'); }
     catch (error) { show(error.message); }
+  }
+  if (btn?.id?.startsWith('rev-')) {
+    const kind = btn.id.slice(4);
+    await revisionAction(kind, btn);
   }
 });
 window.addEventListener('hashchange',render);

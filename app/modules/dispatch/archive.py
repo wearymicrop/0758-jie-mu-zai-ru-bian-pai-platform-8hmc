@@ -10,13 +10,6 @@ def create(source, label):
     started = perf_counter()
     digest = manifest(source)
     run_id = digest["digest"]
-    try:
-        _, record = fetch(run_id)
-    except DomainError as exc:
-        if exc.code != "RUN_NOT_FOUND":
-            raise
-    else:
-        return {**record, "reused": True}
     result = process(source)
     return save(source, {"id": run_id, "manifest": digest, "sample": label,
                          "elapsed_ms": round((perf_counter() - started) * 1000, 2), "result": result})

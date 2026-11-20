@@ -1,0 +1,18 @@
+<details id="revision-form" class="submission">
+  <summary>提交整批工单修订</summary>
+  <form id="revision-payload">
+    <label for="rev-source">修订批次</label>
+    <select id="rev-source">
+      <option value="revision">修订样例（A01 加长 · 新增 D01）</option>
+      <option value="custom">自备修订工单</option>
+    </select>
+    <div id="rev-custom" hidden>
+      <button id="rev-load-baseline" type="button">载入当前基线工单与日历</button>
+      <label for="rev-orders">修订工单逐行 JSON</label>
+      <textarea id="rev-orders" rows="4"></textarea>
+      <label for="rev-calendar">剧场日历 JSON（沿用基线时可粘贴原日历）</label>
+      <textarea id="rev-calendar" rows="4"></textarea>
+    </div>
+    <p class="hint">修订基于当前已归档联单；未归档时请先在「转场排程」确认归档。核对未通过前不会切换，旧版联单原样保留。</p>
+  </form>
+</details>

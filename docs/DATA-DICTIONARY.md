@@ -23,3 +23,19 @@ UTF-8，支持文件头 BOM。每个物理行一个对象，行号从 1 开始�
 ## 输出和证据
 
 输入物理行在采信、重传、空行或源隔离中唯一归类。每条采信工单在 `scheduled`、`pending` 或 `isolated` 中唯一归类。`line` 是工单行号，`source_index` 是日历预约项位置，`related` 保存环成员、前置工单、预约号或资源键。超时按作业完工减截止计算。清场时间仅占用舞台。原有预约重叠单独报告。归档保存完整输入与计算结果，摘要按稳定 JSON 和规则版本计算。
+
+## 修订联单 `revisions`
+
+修订记录与普通归档分开存放在 `revisions` 表，状态为 `DRAFT`、`PASSED`、`PUBLISHED` 或 `FAILED`，并保存 `baseline_id` 与完整修订输入。
+
+| 字段 | 规则 |
+|---|---|
+| `revision.diff.changed` | 同号工单的字段级差异，每项含 `before`、`after` 与中文字段名 `label` |
+| `revision.diff.added` / `removed` | 相对基线新增、删除的工序号，排序稳定 |
+| `revision.impacted` | 必须重排的工序集合；之外的已落位工序锁定旧时段 |
+| `revision.impact_meta.traces` | 每道受影响工序的纳入证据：`SEED`、`CHAIN:工序`、`STAGE:工序`、`TECH:工序`；日历整体修订时为 `{"calendar": true}` |
+| `revision.annotations` | 每道工序的 `change`（`KEPT` 沿用 / `MOVED` 改期 / `NEW` 新增 / `DEFERRED` 暂缓 / `RECOVERED` 恢复）、`reasons` 依据码、`old` 与 `new` 时段技师快照 |
+| `revision.verify.checks` | 七项发布闸门：行守恒、键集合、资源碰撞、前置顺序、锁定承诺、截止回归、删除出清，每项含 `passed` 与 `detail` |
+| `revision.verify.late_minutes` | 修订前后超时总分钟对照；单项超时恶化列入 `DEADLINE_REGRESSION` 明细 |
+
+`result` 与普通批次同构（`orders`…`dispatch` 七段），排程、超时勾稽和执行联单均取自这同一版结果。

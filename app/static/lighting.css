@@ -26,3 +26,17 @@ td.number { text-align:right; font-variant-numeric:tabular-nums; }
 .file { display:inline-block; margin-top:9px; text-decoration:none; }
 .archived { display:grid; gap:10px; }
 .archived code { overflow-wrap:anywhere; }
+.hint { color:var(--muted); font-size:13px; }
+.badge { display:inline-block; padding:2px 9px; border:1px solid var(--control-border); border-radius:2px; font-size:12px; white-space:nowrap; }
+.badge.kept { color:#a9d7b8; border-color:#5d8a6c; }
+.badge.moved { color:var(--gold); border-color:#b08d56; }
+.badge.new { color:#a9c4e6; border-color:#5d77a0; }
+.badge.deferred { color:var(--bad); border-color:#a05d5d; }
+.badge.pass { color:#a9d7b8; border-color:#5d8a6c; }
+.badge.fail { color:var(--bad); border-color:#a05d5d; }
+.rev-banner { display:grid; gap:4px; border:1px solid var(--rule); border-left:3px solid var(--gold); padding:12px 14px; margin-bottom:16px; }
+.rev-banner.bad { border-left-color:var(--bad); }
+.rev-banner small { color:var(--muted); font-variant-numeric:tabular-nums; }
+.rev-actions { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+.link-job { padding:2px 6px; }
+td button.link-job { border:0; background:transparent; color:var(--gold); text-decoration:underline; padding:0; }

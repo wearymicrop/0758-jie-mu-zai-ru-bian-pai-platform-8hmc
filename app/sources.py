@@ -6,7 +6,7 @@ from app.errors import DomainError
 
 
 def load_sample(sample):
-    if sample not in {"clean", "dirty"}:
+    if sample not in {"clean", "dirty", "revision"}:
         raise DomainError("SAMPLE_NOT_FOUND", "找不到指定样例", 404)
     folder = ROOT / "sample_data" / sample
     return {SOURCES[0]: (folder / (SOURCES[0] + ".jsonl")).read_bytes().decode("utf-8"),

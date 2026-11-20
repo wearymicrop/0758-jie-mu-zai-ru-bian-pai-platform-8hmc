@@ -20,8 +20,19 @@ docker compose up --build
 ## 接口
 
 - `GET /api/health` 检查存储连通性。
-- `GET /api/samples/clean` 和 `GET /api/samples/dirty` 返回计算结果。七个子路径分别是 `orders`、`dependencies`、`calendars`、`conflicts`、`schedule`、`reconcile`、`dispatch`。排程支持 `?job=A01`。
+- `GET /api/samples/{sample}` 和 `GET /api/samples/{sample}/...` 返回计算结果，样例为 `clean`、`dirty`、`revision`。七个子路径分别是 `orders`、`dependencies`、`calendars`、`conflicts`、`schedule`、`reconcile`、`dispatch`。排程支持 `?job=A01`。
 - `POST /api/runs` 接收 `{"sample":"dirty"}` 或 `{"orders":"逐行文本","calendar":{...}}`。`GET /api/runs/{id}` 读取归档，`POST /api/runs/{id}/rerun` 复算比对，`GET /api/runs/{id}/export` 下载证据。
+
+## 工单修订联单
+
+演出前收到整批工单修订时，先归档基线联单，再在「修订联单」提交修订批次：
+
+1. `POST /api/runs/{id}/revisions/preview` 不落库试排，逐项展示沿用旧时段还是改期及其依据；
+2. `POST /api/runs/{id}/revisions` 生成修订草稿，编号由基线编号与修订输入摘要决定，同一修订重复提交只取回同一条，不会重复生成联单；
+3. `POST /api/revisions/{id}/verify` 用同一版规则重算并做七项核对（行守恒、键集合、资源碰撞、前置顺序、锁定承诺、截止回归、删除出清）；
+4. 核对通过后 `POST /api/revisions/{id}/publish` 才原子切换；未通过或未核对时发布被拒，旧版联单原样保留。`GET /api/revisions/{id}/export` 下载修订证据。
+
+重排只覆盖受影响面：直接修订点、新增工序、被删工序的后继，再沿前序链和共享舞台/技师的旧时段交集扩张，集合之外的已落位工序逐字段锁定旧时段。日历本身被修订时全部已落位工序纳入重排。排程、超时勾稽与执行联单始终取自修订记录内的同一版 `result`。
 
 ## 排程边界
 
